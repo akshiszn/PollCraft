@@ -1,6 +1,6 @@
 # PollCraft 📊
 
-> A production-grade, real-time polling application featuring instantaneous zero-refresh updates, in-memory vote counters, and server-side validation.
+> A real-time polling application featuring instantaneous zero-refresh updates, in-memory vote counters, and server-side validation.
 
 🔗 Live App: [poll-craft-tan.vercel.app](https://poll-craft-tan.vercel.app)
 
@@ -96,5 +96,4 @@ npm run dev
 ---
 
 ## 🛡 Security & Environment Variable Safety
-* All database connection strings, secret keys, and tokens are safely isolated inside `.env` files and excluded via `.gitignore`.
 * Public deployment environments (Render & Vercel) inject secrets dynamically via secure runtime environment settings.
