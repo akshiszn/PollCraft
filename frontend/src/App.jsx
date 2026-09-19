@@ -3,8 +3,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, us
 import { Mail, Lock, Plus, Trash2, CheckCircle2, Share2, LogOut, BarChart2, List, PieChart as PieIcon, LayoutDashboard, ExternalLink } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from "recharts";
 
-const API_BASE = "http://localhost:8080/api";
-const WS_BASE = "ws://localhost:8080/ws";
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : "http://localhost:8080/api";
+
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL
+  ? `${import.meta.env.VITE_WS_BASE_URL}/ws`
+  : "ws://localhost:8080/ws";
 const COLORS = ["#0052cc", "#ff5500", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
 
 export default function App() {
