@@ -2,19 +2,14 @@
 
 > A production-grade, real-time polling application featuring instantaneous zero-refresh updates, in-memory vote counters, and server-side validation.
 
-[![Live App](https://img.shields.io/badge/Live_Demo-Vercel-brightgreen?style=for-the-badge&logo=vercel)](#-live-demo)
-[![Backend API](https://img.shields.io/badge/Backend_API-Render-blue?style=for-the-badge&logo=render)](#-live-demo)
-
----
-
-## 🔗 Live Demo & Submission Links
-* **Frontend App:** [https://your-pollcraft-frontend.vercel.app](https://your-pollcraft-frontend.vercel.app) *(Update after deployment)*
-* **Backend API:** [https://your-pollcraft-backend.onrender.com](https://your-pollcraft-backend.onrender.com) *(Update after deployment)*
-* **Walkthrough Video:** [Link to YouTube / Google Drive Video] *(Update after recording)*
+🔗 Live App: [poll-craft-tan.vercel.app](https://poll-craft-tan.vercel.app)
 
 ---
 
 ## 🏗 System Architecture & Stack Utilization
+
+<img width="2640" height="2426" alt="mermaid-diagram-2026-09-19-091924" src="https://github.com/user-attachments/assets/7edbe566-f911-4f7c-b06a-1a179b1f253c" />
+
 
 Every layer of the stack is chosen for a specific architectural reason to ensure seamless, real-time execution without shortcuts:
 
