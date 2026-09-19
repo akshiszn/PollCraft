@@ -16,7 +16,7 @@ Every layer of the stack is chosen for a specific architectural reason to ensure
 | Technology | Role & Architectural Purpose |
 | :--- | :--- |
 | **React + Vite** | Dynamic, responsive frontend UI rendering real-time WebSocket state without page refreshes. |
-| **Go (Golang)** | High-concurrency backend API handling HTTP routing, WebSocket client hub management, and strict server-side payload validation. |
+| **Go (Gin)** | High-concurrency backend API handling HTTP routing, WebSocket client hub management, and strict server-side payload validation. |
 | **Upstash Redis** | **In-memory real-time driver:** Handles sub-millisecond atomic vote increments (`INCRBY`) and enforces IP/session rate-limiting before hitting database layers. |
 | **MongoDB Atlas** | **Persistent store:** Manages user authentication records, hashed credentials, and long-term poll metadata/schemas. |
 
