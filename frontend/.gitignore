@@ -1,0 +1,22 @@
+# Environment files 
+.env
+.env.*
+!.env.example
+
+# Go binaries & build files
+backend/main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node / Frontend build outputs & dependencies
+**/node_modules/
+**/dist/
+**/build/
+
+# IDE and OS junk files
+.DS_Store
+.vscode/
+.idea/
