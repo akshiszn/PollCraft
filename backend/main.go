@@ -46,6 +46,7 @@ type Poll struct {
 
 type VotePayload struct {
 	OptionID string `json:"option_id" binding:"required"`
+	ClientID string `json:"client_id"`
 }
 
 // --- Globals ---
@@ -436,7 +437,7 @@ func main() {
 		c.JSON(http.StatusOK, poll)
 	})
 
-	// Vote Route
+	// Vote Route (Updated to support ClientID per browser session)
 	r.POST("/api/polls/:id/vote", func(c *gin.Context) {
 		pollID := c.Param("id")
 		var req VotePayload
@@ -445,10 +446,15 @@ func main() {
 			return
 		}
 
-		userIP := c.ClientIP()
+		// Use ClientID sent from frontend localStorage; fallback to ClientIP if absent
+		voterID := req.ClientID
+		if voterID == "" {
+			voterID = c.ClientIP()
+		}
+
 		ctx := context.Background()
 
-		rateKey := fmt.Sprintf("vote_lock:%s:%s", pollID, userIP)
+		rateKey := fmt.Sprintf("vote_lock:%s:%s", pollID, voterID)
 		set, err := RedisClient.SetNX(ctx, rateKey, "1", 24*time.Hour).Result()
 		if err != nil || !set {
 			c.JSON(http.StatusForbidden, gin.H{"error": "You have already voted on this poll"})

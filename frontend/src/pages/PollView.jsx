@@ -1,153 +1,190 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react"
+import React, { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env?.VITE_API_BASE || "http://localhost:8080/api";
-const WS_BASE = import.meta.env?.VITE_WS_BASE || "ws://localhost:8080/ws";
+// Helper to retrieve or generate a persistent unique ID for the client
+const getClientId = () => {
+    let clientId = localStorage.getItem("poll_client_id");
+    if (!clientId) {
+        clientId = crypto.randomUUID();
+        localStorage.setItem("poll_client_id", clientId);
+    }
+    return clientId;
+};
 
-export default function PollView() {
-    const { id } = useParams();
+const PollView = ({ pollId }) => {
     const [poll, setPoll] = useState(null);
+    const [selectedOption, setSelectedOption] = useState(() => {
+        return localStorage.getItem(`voted_${pollId}`) || null;
+    });
+    const [hasVoted, setHasVoted] = useState(() => {
+        return !!localStorage.getItem(`voted_${pollId}`);
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [voted, setVoted] = useState(false);
 
-    // 1. Check local storage to see if this user already voted on this poll
+    // 1. Fetch initial poll data
     useEffect(() => {
-        const votedPolls = JSON.parse(localStorage.getItem("voted_polls") || "[]");
-        if (votedPolls.includes(id)) {
-            setVoted(true);
-        }
-    }, [id]);
-
-    useEffect(() => {
-        // 2. Fetch Poll Data
         const fetchPoll = async () => {
             try {
-                const res = await fetch(`${API_BASE}/polls/${id}`);
-                if (!res.ok) {
-                    throw new Error("Failed to load poll");
+                const response = await fetch(`/api/polls/${pollId}`);
+                if (!response.ok) {
+                    throw new Error("Failed to load poll data.");
                 }
-                const data = await res.json();
+                const data = await response.json();
                 setPoll(data);
             } catch (err) {
                 console.error("Fetch error:", err);
-                setError("Poll not found or server error.");
+                setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchPoll();
+    }, [pollId]);
 
-        // 3. Setup WebSocket Live Updates with connection error handling
-        let ws;
-        try {
-            ws = new WebSocket(`${WS_BASE}/polls/${id}`);
+    // 2. Real-time updates via WebSocket
+    useEffect(() => {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws/polls/${pollId}`;
+        const ws = new WebSocket(wsUrl);
 
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === "VOTE_UPDATE" && data.votes) {
-                        setPoll((prev) => (prev ? { ...prev, votes: data.votes } : prev));
-                    }
-                } catch (e) {
-                    console.error("WebSocket message parse error:", e);
+        ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                // Handle incoming live vote counts
+                if (message.type === "VOTE_UPDATE" && message.votes) {
+                    setPoll((prevPoll) => {
+                        if (!prevPoll) return prevPoll;
+                        return {
+                            ...prevPoll,
+                            votes: message.votes,
+                        };
+                    });
                 }
-            };
+            } catch (err) {
+                console.error("WebSocket message parsing error:", err);
+            }
+        };
 
-            ws.onerror = (err) => {
-                console.error("WebSocket error:", err);
-            };
-        } catch (e) {
-            console.error("Failed to establish WebSocket connection:", e);
-        }
+        ws.onerror = (wsErr) => {
+            console.error("WebSocket error:", wsErr);
+        };
 
         return () => {
-            if (ws) ws.close();
+            ws.close();
         };
-    }, [id]);
+    }, [pollId]);
 
+    // 3. Submit vote to API (Includes Option 1 client_id)
     const handleVote = async (optionId) => {
+        if (isSubmitting || hasVoted) return;
+
+        setIsSubmitting(true);
+        setError(null);
+
         try {
-            const res = await fetch(`${API_BASE}/polls/${id}/vote`, {
+            const response = await fetch(`/api/polls/${pollId}/vote`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ option_id: optionId }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    option_id: optionId,
+                    client_id: getClientId(), // Sends unique client_id for server-side Redis lock
+                }),
             });
 
-            const data = await res.json();
-            if (res.ok) {
-                setVoted(true);
+            const data = await response.json();
 
-                // Save poll ID to local storage so page refreshes retain voted state
-                const votedPolls = JSON.parse(localStorage.getItem("voted_polls") || "[]");
-                if (!votedPolls.includes(id)) {
-                    localStorage.setItem("voted_polls", JSON.stringify([...votedPolls, id]));
-                }
-
-                if (data.votes) {
-                    setPoll((prev) => ({ ...prev, votes: data.votes }));
-                }
-            } else {
-                alert(data.error || "Failed to submit vote");
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to submit vote.");
             }
+
+            // Lock UI locally on successful vote
+            localStorage.setItem(`voted_${pollId}`, optionId);
+            setHasVoted(true);
+            setSelectedOption(optionId);
         } catch (err) {
-            console.error("Vote error:", err);
-            alert("Error submitting vote");
+            console.error("Vote submission error:", err);
+            setError(err.message);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    if (loading) return <div style={{ padding: "2rem", textAlign: "center" }}>Loading poll...</div>;
-    if (error) return <div style={{ padding: "2rem", textAlign: "center", color: "red" }}>{error}</div>;
-    if (!poll) return null;
+    // Helper calculation for total votes
+    const getTotalVotes = () => {
+        if (!poll || !poll.votes) return 0;
+        return Object.values(poll.votes).reduce((sum, count) => sum + count, 0);
+    };
 
-    const totalVotes = poll.votes
-        ? Object.values(poll.votes).reduce((acc, curr) => acc + Number(curr), 0)
-        : 0;
+    if (loading) {
+        return <div className="p-6 text-center text-gray-500">Loading poll...</div>;
+    }
+
+    if (error && !poll) {
+        return <div className="p-6 text-center text-red-500">Error: {error}</div>;
+    }
+
+    const totalVotes = getTotalVotes();
 
     return (
-        <div style={{ maxWidth: "600px", margin: "2rem auto", padding: "1.5rem" }}>
-            <h2>{poll.question}</h2>
+        <div className="max-w-md mx-auto my-8 p-6 bg-white rounded-xl shadow-md border border-gray-100">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{poll.question}</h2>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1.5rem" }}>
-                {poll.options &&
-                    poll.options.map((opt) => {
-                        const count = poll.votes?.[opt.id] || 0;
-                        const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+                    {error}
+                </div>
+            )}
 
-                        return (
-                            <div
-                                key={opt.id}
-                                style={{
-                                    border: "1px solid #ccc",
-                                    borderRadius: "8px",
-                                    padding: "1rem",
-                                    cursor: voted ? "default" : "pointer",
-                                }}
-                                onClick={() => !voted && handleVote(opt.id)}
+            <div className="space-y-3">
+                {poll.options.map((option) => {
+                    const voteCount = (poll.votes && poll.votes[option.id]) || 0;
+                    const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                    const isSelected = selectedOption === option.id;
+
+                    return (
+                        <div key={option.id} className="relative">
+                            <button
+                                disabled={hasVoted || isSubmitting}
+                                onClick={() => handleVote(option.id)}
+                                className={`w-full text-left p-4 rounded-lg border transition-all relative overflow-hidden ${hasVoted
+                                        ? isSelected
+                                            ? "border-blue-500 bg-blue-50/30"
+                                            : "border-gray-200 bg-gray-50 cursor-default"
+                                        : "border-gray-200 hover:border-blue-400 hover:bg-blue-50/10 cursor-pointer"
+                                    }`}
                             >
-                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                                    <strong>{opt.text}</strong>
-                                    <span>{count} votes ({percentage}%)</span>
-                                </div>
-
-                                {/* Progress Bar */}
-                                <div style={{ background: "#eee", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
+                                {/* Visual Progress Bar (Shows after voting or on live results) */}
+                                {hasVoted && (
                                     <div
-                                        style={{
-                                            background: "#3b82f6",
-                                            height: "100%",
-                                            width: `${percentage}%`,
-                                            transition: "width 0.3s ease",
-                                        }}
+                                        className="absolute top-0 left-0 bottom-0 bg-blue-100/60 transition-all duration-500 ease-out"
+                                        style={{ width: `${percentage}%` }}
                                     />
+                                )}
+
+                                <div className="relative z-10 flex justify-between items-center">
+                                    <span className="font-medium text-gray-700">{option.text}</span>
+                                    {hasVoted && (
+                                        <span className="text-sm font-semibold text-gray-500 ml-2">
+                                            {percentage}% ({voteCount})
+                                        </span>
+                                    )}
                                 </div>
-                            </div>
-                        );
-                    })}
+                            </button>
+                        </div>
+                    );
+                })}
             </div>
 
-            {voted && <p style={{ color: "green", marginTop: "1rem" }}>Thanks for voting!</p>}
+            <div className="mt-6 flex justify-between items-center text-xs text-gray-400 border-t pt-3">
+                <span>Total votes: {totalVotes}</span>
+                {hasVoted && <span className="text-green-600 font-medium">✓ Vote Recorded</span>}
+            </div>
         </div>
     );
-}
+};
+
+export default PollView;
