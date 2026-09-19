@@ -76,7 +76,6 @@ cd PollCraft
 ```bash
 cd backend
 cp .env.example .env
-# Fill in your MONGODB_URI, UPSTASH_REDIS_REST_URL, and UPSTASH_REDIS_REST_TOKEN in .env
 
 go run main.go
 ```
@@ -86,7 +85,6 @@ go run main.go
 ```bash
 cd ../frontend
 cp .env.example .env
-# Ensure VITE_API_BASE_URL=http://localhost:8080 and VITE_WS_BASE_URL=ws://localhost:8080
 
 npm install
 npm run dev
