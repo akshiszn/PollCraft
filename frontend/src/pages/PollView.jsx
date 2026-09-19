@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react"
+
+const API_BASE = import.meta.env?.VITE_API_BASE || "http://localhost:8080/api";
+const WS_BASE = import.meta.env?.VITE_WS_BASE || "ws://localhost:8080/ws";
 
 export default function PollView() {
     const { id } = useParams();
@@ -8,11 +11,19 @@ export default function PollView() {
     const [error, setError] = useState("");
     const [voted, setVoted] = useState(false);
 
+    // 1. Check local storage to see if this user already voted on this poll
     useEffect(() => {
-        // 1. Fetch Poll Data
+        const votedPolls = JSON.parse(localStorage.getItem("voted_polls") || "[]");
+        if (votedPolls.includes(id)) {
+            setVoted(true);
+        }
+    }, [id]);
+
+    useEffect(() => {
+        // 2. Fetch Poll Data
         const fetchPoll = async () => {
             try {
-                const res = await fetch(`http://localhost:8080/api/polls/${id}`);
+                const res = await fetch(`${API_BASE}/polls/${id}`);
                 if (!res.ok) {
                     throw new Error("Failed to load poll");
                 }
@@ -28,26 +39,37 @@ export default function PollView() {
 
         fetchPoll();
 
-        // 2. Setup WebSocket Live Updates
-        const ws = new WebSocket(`ws://localhost:8080/ws/polls/${id}`);
+        // 3. Setup WebSocket Live Updates with connection error handling
+        let ws;
+        try {
+            ws = new WebSocket(`${WS_BASE}/polls/${id}`);
 
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === "VOTE_UPDATE" && data.votes) {
-                    setPoll((prev) => (prev ? { ...prev, votes: data.votes } : prev));
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "VOTE_UPDATE" && data.votes) {
+                        setPoll((prev) => (prev ? { ...prev, votes: data.votes } : prev));
+                    }
+                } catch (e) {
+                    console.error("WebSocket message parse error:", e);
                 }
-            } catch (e) {
-                console.error("WebSocket message parse error:", e);
-            }
-        };
+            };
 
-        return () => ws.close();
+            ws.onerror = (err) => {
+                console.error("WebSocket error:", err);
+            };
+        } catch (e) {
+            console.error("Failed to establish WebSocket connection:", e);
+        }
+
+        return () => {
+            if (ws) ws.close();
+        };
     }, [id]);
 
     const handleVote = async (optionId) => {
         try {
-            const res = await fetch(`http://localhost:8080/api/polls/${id}/vote`, {
+            const res = await fetch(`${API_BASE}/polls/${id}/vote`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ option_id: optionId }),
@@ -56,6 +78,13 @@ export default function PollView() {
             const data = await res.json();
             if (res.ok) {
                 setVoted(true);
+
+                // Save poll ID to local storage so page refreshes retain voted state
+                const votedPolls = JSON.parse(localStorage.getItem("voted_polls") || "[]");
+                if (!votedPolls.includes(id)) {
+                    localStorage.setItem("voted_polls", JSON.stringify([...votedPolls, id]));
+                }
+
                 if (data.votes) {
                     setPoll((prev) => ({ ...prev, votes: data.votes }));
                 }
@@ -102,7 +131,7 @@ export default function PollView() {
                                     <span>{count} votes ({percentage}%)</span>
                                 </div>
 
-                                {/* Simple Bar Progress */}
+                                {/* Progress Bar */}
                                 <div style={{ background: "#eee", height: "8px", borderRadius: "4px", overflow: "hidden" }}>
                                     <div
                                         style={{
