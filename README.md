@@ -26,7 +26,7 @@ Every layer of the stack is chosen for a specific architectural reason to ensure
 
 1. **Truly Real-Time (WebSockets + Redis Engine)**
    * Votes cast from any browser instance instantly trigger an atomic increment in Upstash Redis.
-   * The Go backend broadcasts the updated tally over persistent WebSocket connections to all connected clients in under **15ms**, requiring **zero page refreshes**.
+   * The Go backend broadcasts the updated tally over persistent WebSocket connections, requiring **zero page refreshes**.
 
 2. **Strict Backend Input Validation & Security**
    * **Never Trust the Client:** All incoming poll creations, option bounds, and vote payload structures are thoroughly sanitized and validated on the Go backend prior to persistence.
